@@ -1,0 +1,6 @@
+dist/
+logs/
+*.sublime-*
+cabal.sandbox.config
+.cabal-sandbox/
+Setup.hs
