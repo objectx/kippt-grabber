@@ -9,6 +9,8 @@ import Data.Aeson.Lens (key, _String, nth)
 import Data.ByteString.Char8 (unpack)
 import Data.ByteString.Lazy.Char8 as B8
 import Data.Text
+import Network.HTTP.Client (ManagerSettings (..))
+import Network.HTTP.Client.TLS (tlsManagerSettings)
 
 kipptAPIEndPoint = "https://kippt.com/"
 
@@ -21,11 +23,16 @@ type Resp = Response (Map String Value)
 
 main :: IO ()
 main = do
-    grabPage $ kipptAPIEndPoint ++ "/api/clips"
+    grabPage opts $ kipptAPIEndPoint ++ "/api/clips"
+  where
+    managerSettings = tlsManagerSettings { managerResponseTimeout = Just (30 * 1000 * 1000) }
+    opts = defaults & manager .~ Left (managerSettings)
+                    & header "X-Kippt-Username" .~ [kipptId]
+                    & header "X-Kippt-API-Token" .~ [kipptToken]
 
-grabPage :: String -> IO ()
-grabPage url = do
-    r <- getWith extraHeader url
+grabPage :: Options -> String -> IO ()
+grabPage opts url = do
+    r <- getWith opts url
     let next = r ^. responseBody . key "meta" . key "next" . _String
     let obj = r ^? responseBody . key "objects" . nth 0
     let body = r ^. responseBody
@@ -33,4 +40,4 @@ grabPage url = do
     B8.putStrLn body
     case obj of
         Nothing -> return ()
-        Just _ -> grabPage $ kipptAPIEndPoint ++ (Data.Text.unpack next)
+        Just _ -> grabPage opts $ kipptAPIEndPoint ++ (Data.Text.unpack next)

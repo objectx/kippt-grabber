@@ -27,5 +27,7 @@ executable kippt-grabber
                      , bytestring
                      , containers
                      , text
+                     , http-client
+                     , http-client-tls
 
   default-language:    Haskell2010
