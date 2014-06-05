@@ -1,31 +1,26 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-import Network.Wreq
-import Control.Lens
-import Control.Monad (when)
-import Data.Map as Map
-import Data.Aeson (Value, Array)
-import Data.Aeson.Lens (key, _String, nth)
-import Data.ByteString.Char8 (unpack)
-import Data.ByteString.Lazy.Char8 as B8
-import Data.Text
-import Network.HTTP.Client (ManagerSettings (..))
-import Network.HTTP.Client.TLS (tlsManagerSettings)
+import           Control.Lens
+import           Data.Aeson                 (Value)
+import           Data.Aeson.Lens            (key, nth, _String)
+import           Data.ByteString.Char8      (unpack)
+import           Data.ByteString.Lazy.Char8 as B8
+import           Data.Map                   as Map
+import           Data.Text
+import           Network.HTTP.Client        (ManagerSettings (..))
+import           Network.HTTP.Client.TLS    (tlsManagerSettings)
+import           Network.Wreq
 
 kipptAPIEndPoint = "https://kippt.com/"
 
 kipptId = "objectxtreme@gmail.com"
 kipptToken = "536ca0f4ae8a4dad89e64b741e50909587aab9c1"
 
-extraHeader = defaults & header "X-Kippt-Username" .~ [kipptId] & header "X-Kippt-API-Token" .~ [kipptToken]
-
-type Resp = Response (Map String Value)
-
 main :: IO ()
 main = do
     grabPage opts $ kipptAPIEndPoint ++ "/api/clips"
   where
-    managerSettings = tlsManagerSettings { managerResponseTimeout = Just (30 * 1000 * 1000) }
+    managerSettings = tlsManagerSettings { managerResponseTimeout = Just (60 * 1000 * 1000) }
     opts = defaults & manager .~ Left (managerSettings)
                     & header "X-Kippt-Username" .~ [kipptId]
                     & header "X-Kippt-API-Token" .~ [kipptToken]
