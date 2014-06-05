@@ -1,13 +1,14 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings #-}
 
-import           Control.Lens
+import           Control.Lens               ((&), (.~), (^.), (^?))
 import           Data.Aeson.Lens            (key, nth, _String)
 import qualified Data.ByteString.Char8      as C8
 import qualified Data.ByteString.Lazy.Char8 as C8L
 import qualified Data.Text                  as T
 import           Network.HTTP.Client        (ManagerSettings (..))
 import           Network.HTTP.Client.TLS    (tlsManagerSettings)
-import           Network.Wreq
+import           Network.Wreq               (responseBody)
+import qualified Network.Wreq               as Wreq
 import           Options.Applicative        ((<$>), (<**>), (<*>), (<>))
 import qualified Options.Applicative        as OA
 
@@ -47,15 +48,15 @@ config = Config <$> OA.strOption (  OA.long "user"
 grabBookmarks :: Config -> IO ()
 grabBookmarks cfg = do
     go ""
-       (defaults & manager .~ Left (managerSettings)
-                 & header "X-Kippt-Username" .~ [C8.pack $ cfg_user cfg]
-                 & header "X-Kippt-API-Token" .~ [C8.pack $ cfg_token cfg])
+       (Wreq.defaults & Wreq.manager .~ Left (managerSettings)
+                 & Wreq.header "X-Kippt-Username" .~ [C8.pack $ cfg_user cfg]
+                 & Wreq.header "X-Kippt-API-Token" .~ [C8.pack $ cfg_token cfg])
        (kipptAPIEndPoint ++ "/api/clips?offset=" ++ (show $ cfg_offset cfg))
   where
     managerSettings = tlsManagerSettings { managerResponseTimeout = Just (60 * 1000 * 1000) }
-    go :: String -> Options -> String -> IO ()
+    go :: String -> Wreq.Options -> String -> IO ()
     go !sep !httpOpts !url = do
-        r <- getWith httpOpts url
+        r <- Wreq.getWith httpOpts url
         let obj = r ^? responseBody . key "objects" . nth 0
         case obj of
             Nothing -> return ()
