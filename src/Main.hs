@@ -11,6 +11,7 @@ import           Network.Wreq
 import           Options.Applicative        ((<$>), (<**>), (<*>), (<>))
 import qualified Options.Applicative        as OA
 
+kipptAPIEndPoint :: String
 kipptAPIEndPoint = "https://kippt.com/"
 
 data Config = Config
@@ -45,13 +46,15 @@ config = Config <$> OA.strOption (  OA.long "user"
 
 grabBookmarks :: Config -> IO ()
 grabBookmarks cfg = do
-    go (defaults & manager .~ Left (managerSettings)
+    go ""
+       (defaults & manager .~ Left (managerSettings)
                  & header "X-Kippt-Username" .~ [C8.pack $ cfg_user cfg]
                  & header "X-Kippt-API-Token" .~ [C8.pack $ cfg_token cfg])
        (kipptAPIEndPoint ++ "/api/clips?offset=" ++ (show $ cfg_offset cfg))
   where
     managerSettings = tlsManagerSettings { managerResponseTimeout = Just (60 * 1000 * 1000) }
-    go !httpOpts !url = do
+    go :: String -> Options -> String -> IO ()
+    go !sep !httpOpts !url = do
         r <- getWith httpOpts url
         let obj = r ^? responseBody . key "objects" . nth 0
         case obj of
@@ -59,5 +62,6 @@ grabBookmarks cfg = do
             Just _ -> do
                 let !body = r ^. responseBody
                 let !next = r ^. responseBody . key "meta" . key "next" . _String
+                Prelude.putStrLn sep
                 C8L.putStrLn body
-                go httpOpts $ kipptAPIEndPoint ++ (T.unpack next)
+                go ",\n" httpOpts $ kipptAPIEndPoint ++ (T.unpack next)
