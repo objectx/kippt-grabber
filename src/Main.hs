@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns, OverloadedStrings #-}
 
+import           Control.Exception          (finally)
 import           Control.Lens               ((&), (.~), (^.), (^?))
 import           Data.Aeson.Lens            (key, nth, _String)
 import qualified Data.ByteString.Char8      as C8
@@ -11,6 +12,7 @@ import           Network.Wreq               (responseBody)
 import qualified Network.Wreq               as Wreq
 import           Options.Applicative        ((<$>), (<**>), (<*>), (<>))
 import qualified Options.Applicative        as OA
+import qualified System.IO                  as IO
 
 kipptAPIEndPoint :: String
 kipptAPIEndPoint = "https://kippt.com/"
@@ -47,11 +49,12 @@ config = Config <$> OA.strOption (  OA.long "user"
 
 grabBookmarks :: Config -> IO ()
 grabBookmarks cfg = do
-    go ""
-       (Wreq.defaults & Wreq.manager .~ Left (managerSettings)
-                 & Wreq.header "X-Kippt-Username" .~ [C8.pack $ cfg_user cfg]
-                 & Wreq.header "X-Kippt-API-Token" .~ [C8.pack $ cfg_token cfg])
-       (kipptAPIEndPoint ++ "/api/clips?offset=" ++ (show $ cfg_offset cfg))
+    IO.putStrLn "["
+    let !opt = Wreq.defaults & Wreq.manager .~ Left (managerSettings)
+                             & Wreq.header "X-Kippt-Username" .~ [C8.pack $ cfg_user cfg]
+                             & Wreq.header "X-Kippt-API-Token" .~ [C8.pack $ cfg_token cfg]
+    let !firstUrl = kipptAPIEndPoint ++ "/api/clips?offset=" ++ (show $ cfg_offset cfg)
+    finally (go "" opt $ firstUrl) (IO.putStrLn "]")
   where
     managerSettings = tlsManagerSettings { managerResponseTimeout = Just (60 * 1000 * 1000) }
     go :: String -> Wreq.Options -> String -> IO ()
@@ -63,6 +66,6 @@ grabBookmarks cfg = do
             Just _ -> do
                 let !body = r ^. responseBody
                 let !next = r ^. responseBody . key "meta" . key "next" . _String
-                Prelude.putStrLn sep
+                IO.putStrLn sep
                 C8L.putStrLn body
                 go ",\n" httpOpts $ kipptAPIEndPoint ++ (T.unpack next)
