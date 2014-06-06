@@ -22,6 +22,7 @@ data Config = Config
     { _user   :: String
     , _token  :: String
     , _offset :: Integer
+    , _timeout :: Integer
     } deriving Show
 
 makeLenses ''Config
@@ -49,17 +50,22 @@ config = Config <$> OA.strOption (  OA.long "user"
                                  <> OA.help "Star offset"
                                  <> OA.value 0
                                  )
+                <*> OA.option    (  OA.long "timeout"
+                                 <> OA.metavar "TIMEOUT"
+                                 <> OA.help "Request timeout (in sec)"
+                                 <> OA.value (60 :: Integer))
 
 grabBookmarks :: Config -> IO ()
 grabBookmarks cfg = do
     IO.putStrLn "["
-    let !opt = Wreq.defaults & Wreq.manager .~ Left (managerSettings)
+    let !opt = Wreq.defaults & Wreq.manager .~ Left (managerSettings $ cfg ^. timeout)
                              & Wreq.header "X-Kippt-Username" .~ [cfg ^. user . to C8.pack]
                              & Wreq.header "X-Kippt-API-Token" .~ [cfg ^. token . to C8.pack]
     let !firstUrl = kipptAPIEndPoint ++ "/api/clips?offset=" ++ (cfg ^. offset . to show)
     finally (go "" opt firstUrl) (IO.putStrLn "]")
   where
-    managerSettings = tlsManagerSettings { managerResponseTimeout = Just (60 * 1000 * 1000) }
+    managerSettings :: Integer -> ManagerSettings
+    managerSettings tmout = tlsManagerSettings { managerResponseTimeout = Just (fromInteger $ tmout * 1000 * 1000) }
     go :: String -> Wreq.Options -> String -> IO ()
     go !sep !httpOpts !url = do
         r <- Wreq.getWith httpOpts url
@@ -67,8 +73,6 @@ grabBookmarks cfg = do
         case obj of
             Nothing -> return ()
             Just _ -> do
-                let !body = r ^. responseBody
-                let !next = r ^. responseBody . key "meta" . key "next" . _String
                 IO.putStrLn sep
-                C8L.putStrLn body
-                go ",\n" httpOpts $ kipptAPIEndPoint ++ T.unpack next
+                C8L.putStrLn $ r ^. responseBody
+                go ",\n" httpOpts $ kipptAPIEndPoint ++ (T.unpack $ r ^. responseBody . key "meta" . key "next" . _String)
