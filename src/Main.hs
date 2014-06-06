@@ -3,6 +3,7 @@
 import           Control.Exception          (finally)
 import           Control.Lens               (makeLenses, to, (&), (.~), (^.),
                                              (^?))
+import           Control.Monad              (unless)
 import           Data.Aeson.Lens            (key, nth, _String)
 import qualified Data.ByteString.Char8      as C8
 import qualified Data.ByteString.Lazy.Char8 as C8L
@@ -19,9 +20,9 @@ kipptAPIEndPoint :: String
 kipptAPIEndPoint = "https://kippt.com/"
 
 data Config = Config
-    { _user   :: String
-    , _token  :: String
-    , _offset :: Integer
+    { _user    :: String
+    , _token   :: String
+    , _offset  :: Integer
     , _timeout :: Integer
     } deriving Show
 
@@ -69,10 +70,8 @@ grabBookmarks cfg = do
     go :: String -> Wreq.Options -> String -> IO ()
     go !sep !httpOpts !url = do
         r <- Wreq.getWith httpOpts url
-        let obj = r ^? responseBody . key "objects" . nth 0
-        case obj of
-            Nothing -> return ()
-            Just _ -> do
-                IO.putStrLn sep
-                C8L.putStrLn $ r ^. responseBody
-                go ",\n" httpOpts $ kipptAPIEndPoint ++ (T.unpack $ r ^. responseBody . key "meta" . key "next" . _String)
+        unless (r ^? responseBody . key "objects" . nth 0 == Nothing) $ do
+            IO.putStrLn sep
+            C8L.putStrLn $ r ^. responseBody
+            let !nextUrlFragment = T.unpack (r ^. responseBody . key "meta" . key "next" . _String)
+            go ",\n" httpOpts $ kipptAPIEndPoint ++ nextUrlFragment
