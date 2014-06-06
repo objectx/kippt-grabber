@@ -1,7 +1,8 @@
-{-# LANGUAGE BangPatterns, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, OverloadedStrings, TemplateHaskell #-}
 
 import           Control.Exception          (finally)
-import           Control.Lens               ((&), (.~), (^.), (^?))
+import           Control.Lens               (makeLenses, to, (&), (.~), (^.),
+                                             (^?))
 import           Data.Aeson.Lens            (key, nth, _String)
 import qualified Data.ByteString.Char8      as C8
 import qualified Data.ByteString.Lazy.Char8 as C8L
@@ -18,13 +19,15 @@ kipptAPIEndPoint :: String
 kipptAPIEndPoint = "https://kippt.com/"
 
 data Config = Config
-    { cfg_user   :: String
-    , cfg_token  :: String
-    , cfg_offset :: Integer
+    { _user   :: String
+    , _token  :: String
+    , _offset :: Integer
     } deriving Show
 
+makeLenses ''Config
+
 main :: IO ()
-main = do
+main =
     OA.execParser progopts >>= grabBookmarks
 
 progopts :: OA.ParserInfo Config
@@ -51,10 +54,10 @@ grabBookmarks :: Config -> IO ()
 grabBookmarks cfg = do
     IO.putStrLn "["
     let !opt = Wreq.defaults & Wreq.manager .~ Left (managerSettings)
-                             & Wreq.header "X-Kippt-Username" .~ [C8.pack $ cfg_user cfg]
-                             & Wreq.header "X-Kippt-API-Token" .~ [C8.pack $ cfg_token cfg]
-    let !firstUrl = kipptAPIEndPoint ++ "/api/clips?offset=" ++ (show $ cfg_offset cfg)
-    finally (go "" opt $ firstUrl) (IO.putStrLn "]")
+                             & Wreq.header "X-Kippt-Username" .~ [cfg ^. user . to C8.pack]
+                             & Wreq.header "X-Kippt-API-Token" .~ [cfg ^. token . to C8.pack]
+    let !firstUrl = kipptAPIEndPoint ++ "/api/clips?offset=" ++ (cfg ^. offset . to show)
+    finally (go "" opt firstUrl) (IO.putStrLn "]")
   where
     managerSettings = tlsManagerSettings { managerResponseTimeout = Just (60 * 1000 * 1000) }
     go :: String -> Wreq.Options -> String -> IO ()
@@ -68,4 +71,4 @@ grabBookmarks cfg = do
                 let !next = r ^. responseBody . key "meta" . key "next" . _String
                 IO.putStrLn sep
                 C8L.putStrLn body
-                go ",\n" httpOpts $ kipptAPIEndPoint ++ (T.unpack next)
+                go ",\n" httpOpts $ kipptAPIEndPoint ++ T.unpack next
